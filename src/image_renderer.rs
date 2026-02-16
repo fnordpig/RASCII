@@ -1,9 +1,18 @@
 use std::io;
 
-use ansi_term::Color;
-use image::{DynamicImage, Rgba};
+use ansi_term::{
+    Color,
+    Style,
+};
+use image::{
+    DynamicImage,
+    Rgba,
+};
 
-use super::renderer::{RenderOptions, Renderer};
+use super::renderer::{
+    RenderOptions,
+    Renderer,
+};
 
 pub struct ImageRenderer<'a> {
     resource: &'a DynamicImage,
@@ -41,9 +50,8 @@ impl<'a> Renderer<'a, DynamicImage> for ImageRenderer<'a> {
                     .options
                     .height
                     .expect("Either width or height must be set") as f64
-                    * self.resource.width() as f64
-                    / self.resource.height() as f64
-                    // This is because the font is rarely square.
+                    * (self.resource.width() as f64 / self.resource.height() as f64)
+                    // This is because the font is rarely square. TODO: Don't apply this for Chinese
                     * 2.0)
                     .ceil() as u32
             }),
@@ -52,8 +60,7 @@ impl<'a> Renderer<'a, DynamicImage> for ImageRenderer<'a> {
                     .options
                     .width
                     .expect("Either width or height must be set") as f64
-                    * self.resource.height() as f64
-                    / self.resource.width() as f64
+                    * (self.resource.height() as f64 / self.resource.width() as f64)
                     // This is because the font is rarely square.
                     / 2.0)
                     .ceil() as u32
@@ -62,39 +69,30 @@ impl<'a> Renderer<'a, DynamicImage> for ImageRenderer<'a> {
 
         let image = self.resource.thumbnail_exact(width, height).to_rgba8();
 
-        let mut last_color: Option<Color> = None;
-        let mut current_line = 0;
+        let mut color = Style::new();
+        let mut prev_line = 0;
         let maximum = image
             .pixels()
             .fold(0.0, |acc, pixel| self.get_grayscale(pixel).max(acc));
         for (_, line, pixel) in image.enumerate_pixels() {
-            if current_line < line {
-                current_line = line;
-
-                if let Some(last_color_value) = last_color {
-                    write!(writer, "{}", last_color_value.suffix())?;
-                    last_color = None;
-                }
-
-                writeln!(writer)?;
+            if self.options.colored {
+                color = color.fg(Color::RGB(pixel[0], pixel[1], pixel[2]));
             }
 
-            if self.options.colored {
-                let color = Color::RGB(pixel[0], pixel[1], pixel[2]);
-
-                if last_color != Some(color) {
-                    write!(writer, "{}", color.prefix())?;
-                }
-
-                last_color = Some(color);
+            if self.options.background {
+                color = color.on(Color::RGB(pixel[0], pixel[1], pixel[2]));
             }
 
             let char_for_pixel = self.get_char_for_pixel(pixel, maximum);
-            write!(writer, "{char_for_pixel}")?;
-        }
 
-        if let Some(last_color) = last_color {
-            write!(writer, "{}", last_color.suffix())?;
+            if prev_line < line {
+                prev_line = line;
+                writeln!(writer)?;
+            }
+
+            write!(writer, "{}", color.prefix())?;
+            write!(writer, "{char_for_pixel}")?;
+            write!(writer, "{}", color.suffix())?;
         }
 
         writer.flush()?;
@@ -109,8 +107,7 @@ impl<'a> Renderer<'a, DynamicImage> for ImageRenderer<'a> {
                     .options
                     .height
                     .expect("Either width or height must be set") as f64
-                    * self.resource.width() as f64
-                    / self.resource.height() as f64
+                    * (self.resource.width() as f64 / self.resource.height() as f64)
                     // This is because the font is rarely square.
                     * 2.0)
                     .ceil() as u32
@@ -120,8 +117,7 @@ impl<'a> Renderer<'a, DynamicImage> for ImageRenderer<'a> {
                     .options
                     .width
                     .expect("Either width or height must be set") as f64
-                    * self.resource.height() as f64
-                    / self.resource.width() as f64
+                    * (self.resource.height() as f64 / self.resource.width() as f64)
                     // This is because the font is rarely square.
                     / 2.0)
                     .ceil() as u32
@@ -130,43 +126,32 @@ impl<'a> Renderer<'a, DynamicImage> for ImageRenderer<'a> {
 
         let image = self.resource.thumbnail_exact(width, height).to_rgba8();
 
-        let mut last_color: Option<Color> = None;
-        let mut current_line = 0;
+        let mut color = Style::new();
+        let mut prev_line = 0;
         let maximum = image
             .pixels()
             .fold(0.0, |acc, pixel| self.get_grayscale(pixel).max(acc));
         for (_, line, pixel) in image.enumerate_pixels() {
-            if current_line < line {
-                current_line = line;
+            if self.options.colored {
+                color = color.fg(Color::RGB(pixel[0], pixel[1], pixel[2]));
+            }
 
-                if let Some(last_color_value) = last_color {
-                    buffer.push_str(&last_color_value.suffix().to_string()); // TODO look up for a
-                                                                             // better solution after benchmarking.
-                    last_color = None;
-                }
+            if self.options.background {
+                color = color.on(Color::RGB(pixel[0], pixel[1], pixel[2]));
+            }
 
+            if prev_line < line {
+                prev_line = line;
                 buffer.push('\n');
             }
 
-            if self.options.colored {
-                let color = Color::RGB(pixel[0], pixel[1], pixel[2]);
-
-                if last_color != Some(color) {
-                    buffer.push_str(&color.prefix().to_string());
-                }
-
-                last_color = Some(color);
-            }
-
-            // Normally this char_for_pixel has to be a char but because of the compatibility
-            // reasons with unicode-segmentation It's implemented as a &str (WORKAROUND)
+            // Normally this char_for_pixel has to be a char but because of the
+            // compatibility reasons with unicode-segmentation It's implemented
+            // as a &str (WORKAROUND)
             let char_for_pixel = self.get_char_for_pixel(pixel, maximum);
+            buffer.push_str(&color.prefix().to_string());
             buffer.push_str(char_for_pixel);
-        }
-
-        if let Some(last_color) = last_color {
-            buffer.push_str(&last_color.suffix().to_string()); // TODO look up for a
-                                                               // better solution after benchmarking.
+            buffer.push_str(&color.suffix().to_string());
         }
 
         Ok(())

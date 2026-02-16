@@ -32,7 +32,7 @@ Options:
   RASCII from your programs without using the system shell.
 
 - **Colored ASCII art generation**: RASCII uses ANSI color codes to generate
-  colored ASCII art.
+    colored ASCII art.
 
   <!-- deno-fmt-ignore -->
   > [!NOTE]

@@ -7,6 +7,7 @@ pub struct RenderOptions<'a> {
     pub width: Option<u32>,
     pub height: Option<u32>,
     pub colored: bool,
+    pub background: bool,
     pub invert: bool,
     pub charset: &'a [&'a str],
 }
@@ -38,6 +39,12 @@ impl<'a> RenderOptions<'a> {
         self
     }
 
+    /// Set whether the rendered image should be colored.
+    pub fn background(mut self, highlighted: bool) -> Self {
+        self.background = highlighted;
+        self
+    }
+
     /// Set whether the rendered image charset should be inverted.
     pub fn invert(mut self, invert: bool) -> Self {
         self.invert = invert;
@@ -57,6 +64,7 @@ impl Default for RenderOptions<'_> {
             width: None,
             height: None,
             colored: false,
+            background: false,
             invert: false,
             charset: charsets::DEFAULT,
         }
@@ -65,8 +73,6 @@ impl Default for RenderOptions<'_> {
 
 pub trait Renderer<'a, R> {
     fn new(resource: &'a R, options: &'a RenderOptions<'a>) -> Self;
-
     fn render_to(&self, writer: &mut impl io::Write) -> io::Result<()>;
-
     fn render(&self, writer: &mut String) -> io::Result<()>;
 }

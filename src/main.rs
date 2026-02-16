@@ -1,7 +1,10 @@
 use std::io;
 
 use clap::Parser;
-use rascii_art::{charsets, RenderOptions};
+use rascii_art::{
+    charsets,
+    RenderOptions,
+};
 use unicode_segmentation::UnicodeSegmentation;
 
 #[derive(Debug, Parser)]
@@ -23,6 +26,10 @@ struct Args {
     /// Whether to use colors in the output image
     #[arg(name = "color", short, long)]
     colored: bool,
+
+    /// Highlight background
+    #[arg(short = 'b', long)]
+    background: bool,
 
     /// Inverts the weights of the characters. Useful for white backgrounds
     #[arg(short, long)]
@@ -51,6 +58,7 @@ fn main() -> image::ImageResult<()> {
             width: args.width,
             height: args.height,
             colored: args.colored,
+            background: args.background,
             invert: args.invert,
             charset,
         },
