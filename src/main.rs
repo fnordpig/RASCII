@@ -43,7 +43,8 @@ struct Args {
     charset: String,
 
     /// Animate the output with a terminal effect.
-    /// Effects: dissolve-in, dissolve-out, swirl-in, swirl-out, ken-burns
+    /// Effects: dissolve-in, dissolve-out, swirl-in, swirl-out, whirl-in,
+    /// whirl-out, ken-burns
     #[arg(short = 'a', long)]
     animate: Option<String>,
 
@@ -82,7 +83,7 @@ fn main() -> image::ImageResult<()> {
     if let Some(ref effect_name) = args.animate {
         let effect = animator::Effect::from_str(effect_name).unwrap_or_else(|| {
             eprintln!(
-                "Unknown animation effect: {}. Valid: dissolve-in, dissolve-out, swirl-in, swirl-out, ken-burns",
+                "Unknown animation effect: {}. Valid: dissolve-in, dissolve-out, swirl-in, swirl-out, whirl-in, whirl-out, ken-burns",
                 effect_name
             );
             std::process::exit(1);

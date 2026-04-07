@@ -13,6 +13,8 @@ pub enum Effect {
     DissolveOut,
     SwirlIn,
     SwirlOut,
+    WhirlIn,
+    WhirlOut,
     KenBurns,
 }
 
@@ -23,6 +25,8 @@ impl Effect {
             "dissolve-out" => Some(Self::DissolveOut),
             "swirl-in" => Some(Self::SwirlIn),
             "swirl-out" => Some(Self::SwirlOut),
+            "whirl-in" => Some(Self::WhirlIn),
+            "whirl-out" => Some(Self::WhirlOut),
             "ken-burns" => Some(Self::KenBurns),
             _ => None,
         }
@@ -54,6 +58,8 @@ impl Animator {
             Effect::DissolveOut => self.play_dissolve_out(&mut out)?,
             Effect::SwirlIn => self.play_swirl(&mut out, false)?,
             Effect::SwirlOut => self.play_swirl(&mut out, true)?,
+            Effect::WhirlIn => self.play_whirl(&mut out, false)?,
+            Effect::WhirlOut => self.play_whirl(&mut out, true)?,
             Effect::KenBurns => self.play_ken_burns(&mut out)?,
         }
 
@@ -195,6 +201,51 @@ impl Animator {
     fn play_swirl(&self, out: &mut impl Write, from_center: bool) -> io::Result<()> {
         let mut positions = self.spiral_positions();
         if from_center {
+            positions.reverse();
+        }
+        self.play_batched(out, &positions, true)
+    }
+
+    fn whirl_positions(&self) -> Vec<(usize, usize)> {
+        let rows = self.grid.len();
+        if rows == 0 {
+            return Vec::new();
+        }
+        let cols = self.grid[0].len();
+        if cols == 0 {
+            return Vec::new();
+        }
+
+        let center_r = rows as f64 / 2.0;
+        let center_c = cols as f64 / 2.0;
+        let max_radius = (center_r * center_r + center_c * center_c).sqrt();
+        // Number of full rotations from center to edge
+        let num_rotations = 4.0;
+
+        let mut positions: Vec<(f64, usize, usize)> = Vec::with_capacity(rows * cols);
+        for r in 0..rows {
+            for c in 0..cols {
+                let dr = r as f64 - center_r;
+                let dc = c as f64 - center_c;
+                let radius = (dr * dr + dc * dc).sqrt();
+                let angle = dr.atan2(dc); // -PI..PI
+                let normalized_radius = radius / max_radius;
+                // Angle normalized to 0..1
+                let angle_norm = (angle + std::f64::consts::PI) / (2.0 * std::f64::consts::PI);
+                // Radius is the primary sort; angle creates a spin within each ring band.
+                // Each 1/num_rotations band of radius gets one full angular sweep.
+                let key = normalized_radius + angle_norm / num_rotations;
+                positions.push((key, r, c));
+            }
+        }
+        positions.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+        positions.into_iter().map(|(_, r, c)| (r, c)).collect()
+    }
+
+    fn play_whirl(&self, out: &mut impl Write, outward: bool) -> io::Result<()> {
+        let mut positions = self.whirl_positions();
+        if !outward {
+            // whirl-in: edge first, center last
             positions.reverse();
         }
         self.play_batched(out, &positions, true)
