@@ -1,10 +1,7 @@
 use std::io;
 
 use clap::Parser;
-use rascii_art::{
-    charsets,
-    RenderOptions,
-};
+use rascii_art::{charsets, RenderOptions};
 use unicode_segmentation::UnicodeSegmentation;
 
 #[derive(Debug, Parser)]
@@ -36,7 +33,8 @@ struct Args {
     invert: bool,
 
     /// Characters used to render the image, from transparent to opaque.
-    /// Built-in charsets: block, emoji, default, russian, slight
+    /// Built-in charsets: block, blocks, braille, chinese, default, dense,
+    /// emoji, hybrid, russian, slight, stipple
     #[arg(short = 'C', long, default_value = "default")]
     charset: String,
 }
@@ -60,6 +58,7 @@ fn main() -> image::ImageResult<()> {
             colored: args.colored,
             background: args.background,
             invert: args.invert,
+            trim: false,
             charset,
         },
     )?;
