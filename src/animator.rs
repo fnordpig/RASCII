@@ -4,6 +4,7 @@ use std::time::{Duration, Instant};
 
 use rand::seq::SliceRandom;
 use rand::thread_rng;
+use rand::Rng;
 
 use crate::cell::Grid;
 
@@ -15,6 +16,8 @@ pub enum Effect {
     SwirlOut,
     WhirlIn,
     WhirlOut,
+    AntsIn,
+    AntsOut,
     KenBurns,
 }
 
@@ -27,6 +30,8 @@ impl Effect {
             "swirl-out" => Some(Self::SwirlOut),
             "whirl-in" => Some(Self::WhirlIn),
             "whirl-out" => Some(Self::WhirlOut),
+            "ants-in" => Some(Self::AntsIn),
+            "ants-out" => Some(Self::AntsOut),
             "ken-burns" => Some(Self::KenBurns),
             _ => None,
         }
@@ -60,6 +65,8 @@ impl Animator {
             Effect::SwirlOut => self.play_swirl(&mut out, true)?,
             Effect::WhirlIn => self.play_whirl(&mut out, false)?,
             Effect::WhirlOut => self.play_whirl(&mut out, true)?,
+            Effect::AntsIn => self.play_ants(&mut out, false)?,
+            Effect::AntsOut => self.play_ants(&mut out, true)?,
             Effect::KenBurns => self.play_ken_burns(&mut out)?,
         }
 
@@ -249,6 +256,129 @@ impl Animator {
             positions.reverse();
         }
         self.play_batched(out, &positions, true)
+    }
+
+    fn play_ants(&self, out: &mut impl Write, outward: bool) -> io::Result<()> {
+        let rows = self.grid.len();
+        if rows == 0 {
+            return Ok(());
+        }
+        let cols = self.grid[0].len();
+        if cols == 0 {
+            return Ok(());
+        }
+
+        let mut rng = thread_rng();
+        let center_r = rows / 2;
+        let center_c = cols / 2;
+
+        // Each ant: (current_r, current_c, target_r, target_c, arrived)
+        let mut ants: Vec<(i32, i32, i32, i32, bool)> = Vec::new();
+        for r in 0..rows {
+            for c in 0..cols {
+                let (start_r, start_c) = if outward {
+                    // ants-out: all start at center
+                    (center_r as i32, center_c as i32)
+                } else {
+                    // ants-in: start at random edge position
+                    let edge: u32 = rng.gen_range(0..4);
+                    match edge {
+                        0 => (0, rng.gen_range(0..cols as i32)),               // top
+                        1 => (rows as i32 - 1, rng.gen_range(0..cols as i32)), // bottom
+                        2 => (rng.gen_range(0..rows as i32), 0),               // left
+                        _ => (rng.gen_range(0..rows as i32), cols as i32 - 1), // right
+                    }
+                };
+                ants.push((start_r, start_c, r as i32, c as i32, false));
+            }
+        }
+
+        let target_fps = 30.0;
+        let total_frames = (self.duration.as_secs_f64() * target_fps) as usize;
+        let frame_duration = self.duration / total_frames.max(1) as u32;
+        // Steps per frame: calibrate so most ants arrive within the duration.
+        // Max distance is roughly rows + cols. We want ~total_frames steps total.
+        let steps_per_frame = ((rows + cols) as f64 / total_frames.max(1) as f64)
+            .max(1.0)
+            .ceil() as usize;
+        let bias = 0.7; // probability of stepping toward target vs random
+
+        let start = Instant::now();
+
+        for frame_idx in 0..total_frames {
+            // Move ants
+            for ant in ants.iter_mut() {
+                if ant.4 {
+                    continue;
+                }
+                for _ in 0..steps_per_frame {
+                    let dr = ant.2 - ant.0;
+                    let dc = ant.3 - ant.1;
+                    if dr == 0 && dc == 0 {
+                        ant.4 = true;
+                        break;
+                    }
+                    let toward_target: bool = rng.gen::<f64>() < bias;
+                    if toward_target {
+                        // Step toward target, choosing axis proportional to distance
+                        if rng.gen::<f64>() < (dr.abs() as f64 / (dr.abs() + dc.abs()) as f64) {
+                            ant.0 += dr.signum();
+                        } else {
+                            ant.1 += dc.signum();
+                        }
+                    } else {
+                        // Random step
+                        match rng.gen_range(0u8..4) {
+                            0 => ant.0 = (ant.0 - 1).max(0),
+                            1 => ant.0 = (ant.0 + 1).min(rows as i32 - 1),
+                            2 => ant.1 = (ant.1 - 1).max(0),
+                            _ => ant.1 = (ant.1 + 1).min(cols as i32 - 1),
+                        }
+                    }
+                }
+            }
+
+            // Render frame: build screen buffer, draw all ants at current positions
+            // Ants that arrived draw their final cell; in-flight ants draw their cell's
+            // character at their current position.
+            write!(out, "\x1b[H")?;
+
+            // Clear buffer
+            let mut screen: Vec<Vec<Option<usize>>> = vec![vec![None; cols]; rows];
+            for (idx, ant) in ants.iter().enumerate() {
+                let r = ant.0.clamp(0, rows as i32 - 1) as usize;
+                let c = ant.1.clamp(0, cols as i32 - 1) as usize;
+                screen[r][c] = Some(idx);
+            }
+
+            for (r, screen_row) in screen.iter().enumerate() {
+                for pixel in screen_row {
+                    if let Some(idx) = pixel {
+                        let ant = &ants[*idx];
+                        let tr = ant.2 as usize;
+                        let tc = ant.3 as usize;
+                        let cell = &self.grid[tr][tc];
+                        write!(out, "{}{}{}", cell.color_pre, cell.ch, cell.color_suf)?;
+                    } else {
+                        write!(out, " ")?;
+                    }
+                }
+                if r < rows - 1 {
+                    writeln!(out)?;
+                }
+            }
+            out.flush()?;
+
+            let target_time = frame_duration * (frame_idx + 1) as u32;
+            let elapsed = start.elapsed();
+            if elapsed < target_time {
+                thread::sleep(target_time - elapsed);
+            }
+        }
+
+        // Snap all ants to destination and draw final image
+        self.draw_full(out)?;
+        Ok(())
     }
 
     fn play_ken_burns(&self, out: &mut impl Write) -> io::Result<()> {

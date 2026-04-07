@@ -14,13 +14,12 @@ pub struct GifRenderer;
 
 impl GifRenderer {
     pub fn play(path: &str, options: &RenderOptions<'_>) -> io::Result<()> {
-        let file = File::open(path).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
-        let decoder = GifDecoder::new(BufReader::new(file))
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+        let file = File::open(path).map_err(io::Error::other)?;
+        let decoder = GifDecoder::new(BufReader::new(file)).map_err(io::Error::other)?;
         let frames: Vec<_> = decoder
             .into_frames()
             .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+            .map_err(io::Error::other)?;
 
         if frames.is_empty() {
             return Ok(());
