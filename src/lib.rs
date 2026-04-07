@@ -25,6 +25,7 @@ pub mod charsets;
 mod gif_renderer;
 mod image_renderer;
 mod renderer;
+pub(crate) mod trim;
 
 use image::DynamicImage;
 use image_renderer::ImageRenderer;
@@ -32,13 +33,20 @@ pub use renderer::RenderOptions;
 use renderer::Renderer;
 use std::{io, path::Path};
 
+pub use trim::trim_image;
+
 pub fn render<P: AsRef<Path> + AsRef<str>>(
     path: P,
     to: &mut impl io::Write,
     options: &RenderOptions<'_>,
 ) -> image::ImageResult<()> {
-    let image = &image::open(path)?;
-    render_image(image, to, options)
+    let image = image::open(path)?;
+    let image = if options.trim {
+        trim::trim_image(&image)
+    } else {
+        image
+    };
+    render_image(&image, to, options)
 }
 
 pub fn render_image(
@@ -46,7 +54,14 @@ pub fn render_image(
     to: &mut impl io::Write,
     options: &RenderOptions<'_>,
 ) -> image::ImageResult<()> {
-    let renderer = ImageRenderer::new(image, options);
+    let owned;
+    let img = if options.trim {
+        owned = trim::trim_image(image);
+        &owned
+    } else {
+        image
+    };
+    let renderer = ImageRenderer::new(img, options);
     renderer.render_to(to)?;
     Ok(())
 }
@@ -56,8 +71,13 @@ pub fn render_to<P: AsRef<Path> + AsRef<str>>(
     buffer: &mut String,
     options: &RenderOptions<'_>,
 ) -> image::ImageResult<()> {
-    let image = &image::open(path)?;
-    let renderer = ImageRenderer::new(image, options);
+    let image = image::open(path)?;
+    let image = if options.trim {
+        trim::trim_image(&image)
+    } else {
+        image
+    };
+    let renderer = ImageRenderer::new(&image, options);
     renderer.render(buffer)?;
     Ok(())
 }
@@ -67,7 +87,14 @@ pub fn render_image_to(
     buffer: &mut String,
     options: &RenderOptions<'_>,
 ) -> image::ImageResult<()> {
-    let renderer = ImageRenderer::new(image, options);
+    let owned;
+    let img = if options.trim {
+        owned = trim::trim_image(image);
+        &owned
+    } else {
+        image
+    };
+    let renderer = ImageRenderer::new(img, options);
     renderer.render(buffer)?;
     Ok(())
 }
