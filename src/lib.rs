@@ -20,6 +20,7 @@
 //! }
 //! ```
 
+pub mod animator;
 pub mod cell;
 pub mod charsets;
 
