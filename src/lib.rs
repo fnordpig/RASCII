@@ -20,6 +20,7 @@
 //! }
 //! ```
 
+pub mod cell;
 pub mod charsets;
 
 mod gif_renderer;
@@ -80,6 +81,11 @@ pub fn render_to<P: AsRef<Path> + AsRef<str>>(
     let renderer = ImageRenderer::new(&image, options);
     renderer.render(buffer)?;
     Ok(())
+}
+
+pub fn render_grid(image: &DynamicImage, options: &RenderOptions<'_>) -> cell::Grid {
+    let renderer = ImageRenderer::new(image, options);
+    renderer.render_grid()
 }
 
 pub fn render_image_to(
