@@ -46,13 +46,8 @@ pub fn render<P: AsRef<Path> + AsRef<str>>(
     to: &mut impl io::Write,
     options: &RenderOptions<'_>,
 ) -> image::ImageResult<()> {
-    let image = image::open(path)?;
-    let image = if options.trim {
-        trim::trim_image(&image)
-    } else {
-        image
-    };
-    render_image(&image, to, options)
+    let image = &image::open(path)?;
+    render_image(image, to, options)
 }
 
 pub fn render_image(

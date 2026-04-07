@@ -258,8 +258,20 @@ impl Animator {
         }
         let cols = self.grid[0].len();
 
-        // If grid is small, just show full image
         if rows <= 1 || cols <= 1 {
+            self.draw_full(out)?;
+            thread::sleep(self.duration);
+            return Ok(());
+        }
+
+        // Viewport is ~70% of the grid; pan across the remaining 30%
+        let view_h = (rows as f64 * 0.7).ceil() as usize;
+        let view_w = (cols as f64 * 0.7).ceil() as usize;
+        let max_y = rows.saturating_sub(view_h);
+        let max_x = cols.saturating_sub(view_w);
+
+        // If grid is too small for a meaningful pan, just show it
+        if max_y == 0 && max_x == 0 {
             self.draw_full(out)?;
             thread::sleep(self.duration);
             return Ok(());
@@ -273,18 +285,18 @@ impl Animator {
         for frame in 0..total_frames {
             let t = frame as f64 / total_frames.max(1) as f64;
 
-            // Pan from top-left to bottom-right
-            let view_y = ((rows.saturating_sub(rows)) as f64 * t) as usize;
-            let view_x = ((cols.saturating_sub(cols)) as f64 * t) as usize;
+            let view_y = (max_y as f64 * t) as usize;
+            let view_x = (max_x as f64 * t) as usize;
 
             write!(out, "\x1b[H")?;
-            for r in 0..rows.min(rows - view_y) {
-                let grid_row = &self.grid[view_y + r];
-                for c in 0..cols.min(cols - view_x) {
-                    let cell = &grid_row[view_x + c];
+            for r in 0..view_h.min(rows - view_y) {
+                for c in 0..view_w.min(cols - view_x) {
+                    let cell = &self.grid[view_y + r][view_x + c];
                     write!(out, "{}{}{}", cell.color_pre, cell.ch, cell.color_suf)?;
                 }
-                if r < rows - 1 {
+                // Clear remainder of terminal line
+                write!(out, "\x1b[K")?;
+                if r < view_h - 1 {
                     writeln!(out)?;
                 }
             }
@@ -297,6 +309,7 @@ impl Animator {
             }
         }
 
+        // Final frame: show full image
         write!(out, "\x1b[2J")?;
         self.draw_full(out)?;
         Ok(())

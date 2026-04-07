@@ -35,7 +35,8 @@ impl GifRenderer {
             .iter()
             .map(|frame| {
                 let (numer, denom) = frame.delay().numer_denom_ms();
-                let delay = Duration::from_millis((numer as u64) / (denom as u64).max(1));
+                let ms = (numer as f64 / denom.max(1) as f64).max(1.0);
+                let delay = Duration::from_millis(ms.round() as u64);
                 let image = DynamicImage::ImageRgba8(frame.buffer().clone());
                 let image = if options.trim {
                     crate::trim::trim_image(&image)
