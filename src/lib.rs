@@ -24,8 +24,8 @@ pub mod animator;
 pub mod cell;
 pub mod charsets;
 
-mod gif_renderer;
-mod image_renderer;
+pub(crate) mod gif_renderer;
+pub(crate) mod image_renderer;
 mod renderer;
 pub(crate) mod trim;
 
@@ -34,6 +34,10 @@ use image_renderer::ImageRenderer;
 pub use renderer::RenderOptions;
 use renderer::Renderer;
 use std::{io, path::Path};
+
+pub fn render_gif(path: &str, options: &RenderOptions<'_>) -> io::Result<()> {
+    gif_renderer::GifRenderer::play(path, options)
+}
 
 pub use trim::trim_image;
 
