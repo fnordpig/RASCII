@@ -32,6 +32,10 @@ struct Args {
     #[arg(short, long)]
     invert: bool,
 
+    /// Trim empty borders (transparent, solid color) from the image
+    #[arg(short = 't', long)]
+    trim: bool,
+
     /// Characters used to render the image, from transparent to opaque.
     /// Built-in charsets: block, blocks, braille, chinese, default, dense,
     /// emoji, hybrid, russian, slight, stipple
@@ -58,7 +62,7 @@ fn main() -> image::ImageResult<()> {
             colored: args.colored,
             background: args.background,
             invert: args.invert,
-            trim: false,
+            trim: args.trim,
             charset,
         },
     )?;
